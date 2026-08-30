@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "pool_bench"
+harness = false  # ← 必须！告诉 Cargo 使用自定义 main
