@@ -4,7 +4,7 @@ use std::alloc::Layout;
 #[test]
 fn test_memory_reuse() {
     let layout = Layout::from_size_align(1024, 8).unwrap();
-    let pool = MemoryPool::new(layout);
+    let mut pool = MemoryPool::new(layout);
 
     // 第一次分配
     let ptr1 = pool.allocate::<i32>(10).unwrap();

@@ -1,4 +1,8 @@
+extern crate alloc;
+
 use crate::block::Block;
+use alloc::alloc::{Layout, alloc, dealloc};
+use core::ptr::null_mut;
 
 /// 一个基于空闲链表（Free List）的内存池，用于高效管理固定内存区域中的动态分配。
 ///
@@ -14,7 +18,7 @@ use crate::block::Block;
 /// 释放时，将块标记为空闲并尝试与左右相邻空闲块合并。
 ///
 /// # 安全性
-/// - 该内存池**不是线程安全的**，若需在多线程环境下使用，调用者需自行加锁保护。
+/// - 该内存池**不是线程安全的**, 目前不支持多线程安全
 /// - `allocate` 返回的指针在未调用 `deallocate` 前有效，调用者需遵守所有权的管理规则。
 /// - 该池不实现自动扩容，若空闲块不足，`allocate` 会返回 `None`。
 ///
@@ -25,7 +29,7 @@ use crate::block::Block;
 ///
 /// // 创建一个容量为 4096 字节、对齐为 8 的内存池
 /// let layout = Layout::from_size_align(4096, 8).unwrap();
-/// let pool = MemoryPool::new(layout);
+/// let mut pool = MemoryPool::new(layout);
 ///
 /// // 分配 4 个 u32 元素（16 字节）
 /// let ptr = pool.allocate::<u32>(4).unwrap();
@@ -48,5 +52,47 @@ use crate::block::Block;
 pub struct MemoryPool {
     /// 指向内存池中第一个块（`Block`）的指针。
     /// 若为空指针（`null_mut()`），则表示内存池未初始化或已耗尽。
-    pub begin_block: *mut Block,
+    begin_block: *mut Block,
+
+    layout: Layout,
+}
+
+impl MemoryPool {
+    pub fn new(layout: Layout) -> Self {
+        let layout = Layout::from_size_align(
+            layout.size() + size_of::<Block>(),
+            layout.align().max(align_of::<Block>()),
+        )
+        .expect("The layout size is too large or the alignment is not a power of two; you should reduce the layout size or adjust the alignment.");
+        let mut pool = Self {
+            begin_block: null_mut(),
+            layout,
+        };
+        unsafe {
+            let block_ptr = alloc(layout) as *mut Block;
+            // 申请初始内存块都不行, 玩不了了
+            if !block_ptr.is_null() {
+                (*block_ptr).free = true;
+                (*block_ptr).prev = null_mut();
+                (*block_ptr).next = null_mut();
+                (*block_ptr).size = layout.size() - size_of::<Block>();
+                pool.begin_block = block_ptr;
+            } else {
+                panic!("alloc pool fail");
+            }
+        }
+        pool
+    }
+
+    pub fn begin_block(&self) -> *mut Block {
+        self.begin_block
+    }
+}
+
+impl Drop for MemoryPool {
+    fn drop(&mut self) {
+        unsafe {
+            dealloc(self.begin_block as *mut u8, self.layout);
+        }
+    }
 }

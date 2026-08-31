@@ -41,9 +41,12 @@ cargo test
 - 释放空指针的安全性
 - 释放后内存可重用
 
+注意: 部分测试代码由AI生成
+
 ## 性能基准
 
 运行基准测试（需要 Rust nightly）：
+注意: 性能测试代码由AI生成
 
 ```bash
 cargo bench

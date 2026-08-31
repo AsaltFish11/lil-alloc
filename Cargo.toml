@@ -2,12 +2,17 @@
 name = "lil-alloc"
 version = "0.1.0"
 edition = "2024"
+# 只有 allocator 是真正的 bench 目标（它通过 mod 引入其余文件），
+# 禁用 Cargo 对 benches/ 目录的自动发现，避免把 common/single 等文件
+# 当作独立的 bench target 编译，导致 crate::common 无法解析。
+autobenches = false
 
 [dependencies]
 
 [dev-dependencies]
 criterion = "0.8.2"
+rand = "0.10.2"
 
 [[bench]]
-name = "pool_bench"
-harness = false  # ← 必须！告诉 Cargo 使用自定义 main
+name = "allocator"
+harness = false 

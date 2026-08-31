@@ -5,7 +5,7 @@ use std::alloc::Layout;
 fn test_allocate_fail() {
     // 池子只有 64 字节
     let layout = Layout::from_size_align(64, 8).unwrap();
-    let pool = MemoryPool::new(layout);
+    let mut pool = MemoryPool::new(layout);
 
     // 尝试分配 100 个 u8（需要 100 字节），应返回 None
     let ptr = pool.allocate::<u8>(100);

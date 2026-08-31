@@ -4,7 +4,7 @@ use std::alloc::Layout;
 #[test]
 fn test_deallocate_null() {
     let layout = Layout::from_size_align(1024, 8).unwrap();
-    let pool = MemoryPool::new(layout);
+    let mut pool = MemoryPool::new(layout);
 
     let null_ptr: *mut i32 = std::ptr::null_mut();
     unsafe {
