@@ -87,6 +87,12 @@ impl MemoryPool {
     pub fn begin_block(&self) -> *mut Block {
         self.begin_block
     }
+
+    /// 池子保证的边界对齐：创建池时 `Layout` 的对齐（已包含 `Block` 的对齐）。
+    /// 拆分块时新块头按这个值取整，保证所有块头（进而数据区）满足对齐要求。
+    pub(crate) fn align(&self) -> usize {
+        self.layout.align()
+    }
 }
 
 impl Drop for MemoryPool {

@@ -27,6 +27,8 @@ impl MemoryPool {
     /// - 分配出的内存未初始化，调用者需自行初始化后再使用；
     /// - 当前实现中，若空闲链表无合适块，会返回 `None`（扩容功能尚未实现）。
     /// - 当`count`为`0`时, 不执行分配, 返回None
+    /// - 请求的字节对齐不能超过池子能保证的对齐（创建池时的 `Layout.align()`，上限为 `size_of::<Block>()`），
+    ///   超出时返回 `None`。例如池用 8 对齐创建时，`u128`(16 对齐) 会返回 `None`；用 16 对齐创建即可支持。
     ///
     /// # 示例
     /// ```
@@ -42,6 +44,10 @@ impl MemoryPool {
             return None;
         }
         let layout = Layout::array::<T>(count).expect("size * T::SIZE should not overflow usize");
+        // 数据区 = 块头 + Block 大小, 所以能保证的请求对齐 = min(池对齐, Block 大小)
+        if layout.align() > self.align().min(size_of::<Block>()) {
+            return None;
+        }
         unsafe { NonNull::new(self.alloc_u8(layout) as *mut T) }
     }
 
@@ -63,7 +69,9 @@ impl MemoryPool {
                 // 太大直接全给出去浪费
                 else if (*ptr).size > size + 2 * size_of::<Block>() {
                     let a_ptr = ptr;
-                    let b_ptr_addr = (size_of::<Block>() + size).next_multiple_of(align_of::<Block>());
+                    // 新块头按池的对齐取整 (不是固定 8!), 这样块头地址始终是池对齐的倍数,
+                    // 数据区 = 块头 + Block 也就满足请求的对齐要求
+                    let b_ptr_addr = (size_of::<Block>() + size).next_multiple_of(self.align());
                     let padding = b_ptr_addr - size_of::<Block>() - size;
                     let b_ptr = (ptr as *mut u8).add(b_ptr_addr) as *mut Block;
                     let next_ptr = (*a_ptr).next;
@@ -74,10 +82,10 @@ impl MemoryPool {
                     if !next_ptr.is_null() {
                         (*next_ptr).prev = b_ptr;
                     }
-                    // 修改大小
+                    // 修改大小: padding 算进 a, b 的大小减去 padding, 保证数据区不越过池尾
                     let old_size = (*a_ptr).size;
                     (*a_ptr).size = size + padding;
-                    (*b_ptr).size = old_size - size - size_of::<Block>();
+                    (*b_ptr).size = old_size - size - padding - size_of::<Block>();
                     // 补全 free
                     (*b_ptr).free = true;
                     return a_ptr;
@@ -89,13 +97,10 @@ impl MemoryPool {
         }
     }
 
-    // 修复对齐
     unsafe fn alloc_u8(&mut self, layout: Layout) -> *mut u8 {
         if self.begin_block().is_null() {
             return null_mut();
         }
-        // layout进行对齐
-        let layout = layout.pad_to_align();
         // 在链表中找到一块符合大小的空闲块,拆出来一个指定大小并将多出来的插回去
         unsafe {
             let ptr = self.get_free_block(layout.size());
